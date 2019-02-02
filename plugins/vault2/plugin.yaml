@@ -1,12 +1,12 @@
-title: Codefresh Vault plugin
-description: The plugin exports KV pairs from Hashicorp Vault to Codefresh pipeline ENV variables
+title: Codefresh Vault plugin2
+description: The plugin exports KV pairs from Hashicorp Vault to Codefresh pipeline ENV variables2
 category:
   - Featured
   - Utility
-source: https://github.com/codefresh-io/cf-vault-plugin
+source: https://github.com/codefresh-io/cf-vault-plugin2
 logo: 'https://cdn-learn.adafruit.com/assets/assets/000/012/878/original/led_strips_doge.bmp\?1386611464'
 maintainer:
-  - name: Alexander Aladov
+  - name: Alexander Aladov2
 envs:
   - name: VAULT_ADDR 
     description: "Vault server URI. Example: https://vault.testdomain.io:8200 (required)"
