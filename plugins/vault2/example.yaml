@@ -1,5 +1,5 @@
-  Vault_to_Env:
-    title: Importing vault values
+  Vault_to_Env2:
+    title: Importing vault values2
     image: 'codefresh/cf-vault-plugin'
     environment:
       - VAULT_ADDR=${{VAULT_ADDR}}
