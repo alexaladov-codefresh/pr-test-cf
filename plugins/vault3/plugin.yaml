@@ -1,7 +1,6 @@
 title: Codefresh Vault plugin3
 description: The plugin exports KV pairs from Hashicorp Vault to Codefresh pipeline ENV variables2
 category:
-  - Featured
   - Utility
 source: https://github.com/codefresh-io/cf-vault-plugin2
 logo: 'https://onlinejpgtools.com/images/examples-onlinejpgtools/mouse.jpg'
