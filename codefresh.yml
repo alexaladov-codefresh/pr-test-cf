@@ -1,0 +1,26 @@
+version: '1.0'
+mode: parallel
+
+stages:
+- e2e_test
+- visual_test
+
+services:
+  name: selenium
+  composition:
+    selenium:
+      image: selenium/standalone-chrome:3.141.59
+      ports:
+        - 4444
+      environment:
+        - SCREEN_WIDTH=1920
+        - SCREEN_HEIGHT=1080
+
+steps:
+  test:
+    image: alpine
+    commands:
+      - echo test
+      - sleep 10
+    services:
+      - selenium
