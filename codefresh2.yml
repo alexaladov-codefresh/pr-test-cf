@@ -1,0 +1,166 @@
+version: '1.0'
+mode: parallel
+
+stages:
+- e2e_test
+- visual_test
+
+services:
+  name: selenium
+  composition:
+    selenium:
+      image: selenium/standalone-chrome:3.141.59
+      ports:
+        - 4444
+      environment:
+        - SCREEN_WIDTH=1920
+        - SCREEN_HEIGHT=1080
+
+steps:
+
+  export_ocb_host:
+    title: Export OCB Staging Host when no Dynamic Environment is created
+    image: alpine
+    commands:
+    - cf_export OCB_E2E_URL=https://ocb-staging.com
+
+  generate_visual_artifacts_index:
+    title: Generate Visual Test Artifacts Index File
+    image: alpine
+    commands:
+      - apk add tree
+      - tree ./tests/e2e/screenshots -H "." -T "Visual Regression Test" > ./tests/e2e/screenshots/index.html
+    when:
+      steps:
+        - name: visual_tests
+          on:
+            - finished
+
+  upload_reports:
+    title: Upload Reports
+    image: codefresh/cf-docker-test-reporting
+    environment:
+      - REPORT_TYPE.0=allure
+      - ALLURE_DIR.0=tests/e2e/allure-results
+      - REPORT_TYPE.1=Visual
+      - REPORT_DIR.1=tests/e2e/screenshots
+      - REPORT_INDEX_FILE.1=index.html
+      - CLEAR_TEST_REPORT.1=true
+    when:
+      steps:
+        - name: e2e_test_chrome
+          on:
+            - finished
+        - name: generate_visual_artifacts_index
+          on:
+            - success
+    retry:
+      maxAttempts: 3
+      delay: 3
+      exponentialFactor: 2
+
+  e2e_test_chrome: &e2e_test_chrome
+    title: Chrome
+    stage: e2e_test
+    image: r.cfcr.io/digistore24/ds/codeceptjs:latest
+    volumes:
+      - /dev/shm:/dev/shm
+    # Copy e2etests into expected location first as mounting a subfolder overrides the "/e2etests" workdir in the codeceptjs image
+    # Export OCB_E2E_URL to make it available to Node.js process.env
+    # Wait for the selenium service to be available
+    # Wait for ocb to be available on login endpoint as "/" returns 302 http status code
+    # Run CodeceptJS e2e tests
+    commands:
+      - cp -a /codefresh/volume/platform/tests/e2e/. /e2etests/ && export OCB_E2E_URL=$OCB_E2E_URL && ./wait-for-tcp.sh selenium 4444 && ./wait-for-url.sh $OCB_E2E_URL/en/login && npx codeceptjs run-multiple parallel --steps --profile=chrome-ci -c configs/codecept.cf-allure.conf.js --grep @visualTest --invert
+    services:
+      - selenium
+    when:
+      steps:
+        - name: main_clone
+          on:
+            - success
+        - name: export_ocb_host
+          on:
+            - success
+
+#  responsive_iphone8:
+#    <<: *e2e_test_chrome
+#    title: Responsive iPhone 8
+#    stage: e2e_test
+#    composition_candidates:
+#      e2etest:
+#        image: r.cfcr.io/digistore24/ds/codeceptjs:latest
+#        volumes:
+#          - '${{CF_VOLUME}}:/codefresh/volume'
+#          - /dev/shm:/dev/shm
+#        # See comment for e2e_test_chrome command above
+#        # Run CodeceptJS only tests with tag @frontend
+#        command: bash -c "cp -a /codefresh/volume/platform/tests/e2e/. /e2etests/ && export OCB_E2E_URL=$OCB_E2E_URL && ./wait-for-tcp.sh selenium 4444 && ./wait-for-url.sh $OCB_E2E_URL/en/login && npx codeceptjs run --steps --profile=responsive-iphone8 --grep '(?=.*@frontend)^(?!.*@visualTest)' -c configs/codecept.conf.js"
+#    when:
+#      steps:
+#        - name: e2e_test_chrome
+#          on:
+#            - success
+#
+#  e2e_test_safari: &e2e_test_safari
+#    title: Safari
+#    stage: e2e_test
+#    image: r.cfcr.io/digistore24/ds/codeceptjs:latest
+#    working_directory: IMAGE_WORK_DIR
+#    environment:
+#      - BROWSERSTACK_USER=${{BROWSERSTACK_USER}}
+#      - BROWSERSTACK_KEY=${{BROWSERSTACK_KEY}}
+#    commands:
+#      - cp -a /codefresh/volume/platform/tests/e2e/. .
+#      - ./wait-for-url.sh $OCB_E2E_URL/en/login && npx codeceptjs run --steps --profile=browserstack-safari -c configs/codecept.bshelper.conf.js --grep @visualTest --invert
+#    when:
+#      steps:
+#        - name: main_clone
+#          on:
+#            - success
+#        - name: export_ocb_host
+#          on:
+#            - success
+#        - name: e2e_test_chrome
+#          on:
+#            - success
+#
+#  e2e_test_edge:
+#    <<: *e2e_test_safari
+#    title: Edge
+#    commands:
+#      - cp -a /codefresh/volume/platform/tests/e2e/. .
+#      - ./wait-for-url.sh $OCB_E2E_URL/en/login && npx codeceptjs run --steps --profile=browserstack-edge --grep '(?=.*)^(?!.*(@ignoreInEdge|@visualTest))' -c configs/codecept.bshelper.conf.js
+#
+#  e2e_test_ie:
+#    <<: *e2e_test_safari
+#    title: IE 11
+#    commands:
+#      - cp -a /codefresh/volume/platform/tests/e2e/. .
+#      - ./wait-for-url.sh $OCB_E2E_URL/en/login && npx codeceptjs run --steps --profile=browserstack-ie --grep '(?=.*@frontend)^(?!.*@visualTest)' -c configs/codecept.bshelper.conf.js
+#
+#  e2e_test_android:
+#    <<: *e2e_test_safari
+#    title: Android
+#    commands:
+#      - cp -a /codefresh/volume/platform/tests/e2e/. .
+#      - ./wait-for-url.sh $OCB_E2E_URL/en/login && npx codeceptjs run --steps --profile=browserstack-android --grep '(?=.*@frontend)^(?!.*@visualTest)' -c configs/codecept.bshelper.conf.js
+#
+#  visual_tests:
+#    title: Visual Regression Tests
+#    stage: visual_test
+#    image: r.cfcr.io/digistore24/ds/codeceptjs:latest
+#    working_directory: IMAGE_WORK_DIR
+#    commands:
+#      - cp -a /codefresh/volume/platform/tests/e2e/. /e2etests/
+#      - export OCB_E2E_URL=$OCB_E2E_URL
+#      - /e2etests/wait-for-url.sh $OCB_E2E_URL/en/login
+#      - npx codeceptjs run --steps -c configs/codecept.visual-test.conf.js --grep @visualTest
+#    when:
+#      steps:
+#        - name: main_clone
+#          on:
+#            - success
+#        - name: export_ocb_host
+#          on:
+#            - success
